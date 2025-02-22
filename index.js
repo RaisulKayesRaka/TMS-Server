@@ -4,6 +4,7 @@ const app = express();
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const e = require("express");
 
 app.use(cors());
 app.use(express.json());
@@ -30,6 +31,8 @@ async function run() {
     );
     const database = client.db("TMS");
     const usersCollection = database.collection("users");
+    const tasksCollection = database.collection("tasks");
+    const activitiesCollection = database.collection("activities");
 
     app.post("/jwt", async (req, res) => {
       const user = req.body;
@@ -74,6 +77,60 @@ async function run() {
       }
       const result = await usersCollection.insertOne(user);
       res.send(result);
+    });
+
+    app.post("/tasks", async (req, res) => {
+      const task = req.body;
+      const result = await tasksCollection.insertOne(task);
+      const activity = {
+        type: "Task Created",
+        timestamp: new Date().toLocaleString(),
+        taskId: result.insertedId,
+        email: task?.email,
+      };
+      await activitiesCollection.insertOne(activity);
+      res.send(result);
+    });
+
+    app.get("/tasks", async (req, res) => {
+      const query = req.query?.email ? { email: req.query.email } : {};
+      const tasks = await tasksCollection.find(query).toArray();
+      res.send(tasks);
+    });
+
+    app.delete("/tasks/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await tasksCollection.deleteOne(query);
+      const activity = {
+        type: "Task Deleted",
+        timestamp: new Date().toLocaleString(),
+        taskId: id,
+        email: req.query?.email,
+      };
+      await activitiesCollection.insertOne(activity);
+      res.send(result);
+    });
+
+    app.put("/tasks/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const update = { $set: req.body };
+      const result = await tasksCollection.updateOne(query, update);
+      const activity = {
+        type: "Task Updated",
+        timestamp: new Date().toLocaleString(),
+        taskId: id,
+        email: req.query?.email,
+      };
+      await activitiesCollection.insertOne(activity);
+      res.send(result);
+    });
+
+    app.get("/activities", async (req, res) => {
+      const query = req.query?.email ? { email: req.query.email } : {};
+      const activities = await activitiesCollection.find({}).toArray();
+      res.send(activities);
     });
   } finally {
     //   await client.close();
